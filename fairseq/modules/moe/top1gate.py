@@ -53,7 +53,8 @@ def top1gating(
         capacity = math.ceil(moe_eval_capacity_token_fraction * num_tokens)
     else:
         # capacity = capacity_factor * S/E
-        capacity = int(capacity_factor * math.ceil(num_tokens / num_experts))
+        if not has_tutel:
+            capacity = int(capacity_factor * math.ceil(num_tokens / num_experts))
 
     # Create a mask for 1st's expert per token
     indices1_s = torch.argmax(gates, dim=1)
@@ -84,6 +85,13 @@ def top1gating(
     l_aux = l_aux * num_experts * num_experts
 
     if has_tutel:
+        if capacity_factor > 0:
+            capacity = int(capacity_factor * math.ceil(num_tokens / num_experts))
+        else:
+            import tutel
+            capacity = locations1.max()
+            capacity = int(tutel.impls.communicate.simple_all_reduce(capacity, op=torch.distributed.ReduceOp.MAX)) + 1
+
         locations1_s = torch.sum(locations1 * mask1, dim=1)
         return l_aux, metadata, capacity, num_experts, [indices1_s,], [locations1_s,], [gates1_s,]
 
